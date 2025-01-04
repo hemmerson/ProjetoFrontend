@@ -20,30 +20,44 @@ const Crud = () => {
         nome: '',
         login: '',
         senha: '',
-        email: '',
+        email: ''
     };
 
-    const [usuarios, setUsuarios] = useState(null);
+    const [usuarios, setUsuarios] = useState<Projeto.Usuario[]>([]);
     const [usuarioDialog, setUsuarioDialog] = useState(false);
     const [deleteUsuarioDialog, setDeleteUsuarioDialog] = useState(false);
     const [deleteUsuariosDialog, setDeleteUsuariosDialog] = useState(false);
     const [usuario, setUsuario] = useState<Projeto.Usuario>(usuarioVazio);
-    const [selectedUsuarios, setSelectedUsuarios] = useState(null);
+    const [selectedUsuarios, setSelectedUsuarios] = useState<Projeto.Usuario[]>([]);
     const [submitted, setSubmitted] = useState(false);
     const [globalFilter, setGlobalFilter] = useState('');
     const toast = useRef<Toast>(null);
     const dt = useRef<DataTable<any>>(null);
     const usuarioService = new UsuarioService();
+    const [loading, setLoading] = useState(false);
 
     useEffect(() => {
-        usuarioService.listarTodos().then((response) => {
-            console.log(response.data);
-            setUsuarios(response.data);
-        }).catch((error) => {
-            console.log(error);
-        })
-    }, []);
-
+        if (usuarios.length == 0) {
+            setLoading(true);
+            usuarioService
+                .listarTodos()
+                .then((response) => {
+                    console.log(response.data);
+                    setUsuarios(response.data);
+                })
+                .catch((error) => {
+                    console.log(error);
+                    toast.current?.show({
+                        severity: 'error',
+                        summary: 'Erro',
+                        detail: 'Erro ao carregar usuários!'
+                    });
+                })
+                .finally(() => {
+                    setLoading(false);
+                });
+        }
+    }, [usuarios]);
 
     const openNew = () => {
         setUsuario(usuarioVazio);
@@ -67,35 +81,31 @@ const Crud = () => {
     const saveUsuario = () => {
         setSubmitted(true);
 
-        /*if (product.name.trim()) {
-            let _products = [...(products as any)];
-            let _product = { ...product };
-            if (product.id) {
-                const index = findIndexById(product.id);
+        if (usuario.nome && usuario.login && usuario.senha && usuario.email) {
+            const promise = !usuario.id ? usuarioService.inserir(usuario) : usuarioService.alterar(usuario);
 
-                _products[index] = _product;
-                toast.current?.show({
-                    severity: 'success',
-                    summary: 'Successful',
-                    detail: 'Product Updated',
-                    life: 3000
+            promise
+                .then((response) => {
+                    setUsuarios(response.data);
+                    setUsuarioDialog(false);
+                    setUsuario(usuarioVazio);
+                    toast.current?.show({
+                        severity: 'success',
+                        summary: 'Sucesso',
+                        detail: !usuario.id ? 'Usuário Cadastrado com sucesso!' : 'Usuário Editado com sucesso!',
+                        life: 3000
+                    });
+                })
+                .catch((error) => {
+                    console.error(error);
+                    toast.current?.show({
+                        severity: 'error',
+                        summary: 'Error',
+                        detail: !usuario.id ? 'Erro ao cadastrar o Usuário!' : 'Erro ao editar o Usuário!',
+                        life: 3000
+                    });
                 });
-            } else {
-                _product.id = createId();
-                _product.image = 'product-placeholder.svg';
-                _products.push(_product);
-                toast.current?.show({
-                    severity: 'success',
-                    summary: 'Successful',
-                    detail: 'Product Created',
-                    life: 3000
-                });
-            }
-
-            setProducts(_products as any);
-            setProductDialog(false);
-            setProduct(emptyProduct);
-        }*/
+        }
     };
 
     const editUsuario = (usuario: Projeto.Usuario) => {
@@ -109,16 +119,30 @@ const Crud = () => {
     };
 
     const deleteUsuario = () => {
-        /*let _products = (products as any)?.filter((val: any) => val.id !== product.id);
-        setProducts(_products);
-        setDeleteProductDialog(false);
-        setProduct(emptyProduct);
-        toast.current?.show({
-            severity: 'success',
-            summary: 'Successful',
-            detail: 'Product Deleted',
-            life: 3000
-        });*/
+        if (usuario.id) {
+            const promise = usuarioService.excluir(usuario.id);
+            promise
+                .then((response) => {
+                    setUsuario(usuarioVazio);
+                    setDeleteUsuarioDialog(false);
+                    setUsuarios([]);
+                    toast.current?.show({
+                        severity: 'success',
+                        summary: 'Sucesso',
+                        detail: 'Usuário Excluído com sucesso!',
+                        life: 3000
+                    });
+                })
+                .catch((error) => {
+                    console.error(error);
+                    toast.current?.show({
+                        severity: 'error',
+                        summary: 'Error',
+                        detail: 'Erro ao excluir o Usuário!',
+                        life: 3000
+                    });
+                });
+        }
     };
 
     const findIndexById = (id: number) => {
@@ -132,15 +156,6 @@ const Crud = () => {
 
         return index;*/
     };
-
-    /*const createId = () => {
-        let id = '';
-        let chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-        for (let i = 0; i < 5; i++) {
-            id += chars.charAt(Math.floor(Math.random() * chars.length));
-        }
-        return id;
-    };*/
 
     const exportCSV = () => {
         dt.current?.exportCSV();
@@ -163,11 +178,6 @@ const Crud = () => {
         });*/
     };
 
-    /*const onCategoryChange = (e: RadioButtonChangeEvent) => {
-        let _product = { ...product };
-        _product['category'] = e.value;
-        setProduct(_product);
-    };*/
 
     const onInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>, nome: string) => {
         const val = (e.target && e.target.value) || '';
@@ -292,8 +302,9 @@ const Crud = () => {
                         selection={selectedUsuarios}
                         onSelectionChange={(e) => setSelectedUsuarios(e.value as any)}
                         dataKey="id"
+                        loading={loading}
                         paginator
-                        rows={10}
+                        rows={5}
                         rowsPerPageOptions={[5, 10, 25]}
                         className="datatable-responsive"
                         paginatorTemplate="FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink CurrentPageReport RowsPerPageDropdown"
